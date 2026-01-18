@@ -13,19 +13,22 @@ class TrackingProvider extends ChangeNotifier {
   final LocationService _locationService = LocationService.instance;
 
   List<TrackingRequestModel> _pendingRequests = [];
-  List<TrackingRequestModel> _activeAsTracked = [];
-  List<TrackingRequestModel> _activeAsTracker = [];
+  List<TrackingRequestModel> _activeAsTracked = []; // Users tracking ME
+  List<TrackingRequestModel> _activeAsTracker = []; // Users I am tracking
   LocationModel? _trackedUserLocation;
+  List<LocationModel> _globalLocations = []; // All tracked users locations
   bool _isLoading = false;
   bool _isSharing = false;
   String? _errorMessage;
   StreamSubscription? _locationSubscription;
+  StreamSubscription? _globalLocationSubscription;
 
   // Getters
   List<TrackingRequestModel> get pendingRequests => _pendingRequests;
   List<TrackingRequestModel> get activeAsTracked => _activeAsTracked;
   List<TrackingRequestModel> get activeAsTracker => _activeAsTracker;
   LocationModel? get trackedUserLocation => _trackedUserLocation;
+  List<LocationModel> get globalLocations => _globalLocations;
   bool get isLoading => _isLoading;
   bool get isSharing => _isSharing;
   String? get errorMessage => _errorMessage;
@@ -172,6 +175,41 @@ class TrackingProvider extends ChangeNotifier {
         );
   }
 
+  /// Start streaming all active locations (Global Map)
+  void startGlobalLocationStream() {
+    _globalLocationSubscription?.cancel();
+
+    // Collect IDs of users I am tracking
+    final trackedIds = _activeAsTracker.map((e) => e.trackedId).toList();
+
+    if (trackedIds.isEmpty) {
+      _globalLocations = [];
+      notifyListeners();
+      return;
+    }
+
+    _globalLocationSubscription = _repository
+        .streamAllActiveLocations(trackedIds)
+        .listen(
+          (locations) {
+            _globalLocations = locations;
+            notifyListeners();
+          },
+          onError: (e) {
+            _errorMessage = e.toString();
+            notifyListeners();
+          },
+        );
+  }
+
+  /// Stop watching global location
+  void stopGlobalLocationStream() {
+    _globalLocationSubscription?.cancel();
+    _globalLocationSubscription = null;
+    _globalLocations = [];
+    notifyListeners();
+  }
+
   /// Stop watching location
   void stopWatchingLocation() {
     _locationSubscription?.cancel();
@@ -204,6 +242,7 @@ class TrackingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _locationSubscription?.cancel();
+    _globalLocationSubscription?.cancel();
     _locationService.stopLocationUpdates();
     super.dispose();
   }

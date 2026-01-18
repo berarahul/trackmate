@@ -10,12 +10,14 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/provider/auth_provider.dart';
 import 'features/friends/provider/friends_provider.dart';
 import 'features/settings/provider/settings_provider.dart';
+import 'features/chat/provider/chat_provider.dart';
 import 'features/tracking/provider/tracking_provider.dart';
 
 // Screens
 import 'features/auth/view/login_screen.dart';
-import 'features/home/view/home_screen.dart';
+// import 'features/home/view/home_screen.dart';
 import 'features/tracking/view/tracking_map_screen.dart';
+import 'main_layout.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -46,6 +48,8 @@ class TrackMateApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TrackingProvider()),
         // Settings Provider
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        // Chat Provider
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: MaterialApp(
         title: 'TrackMate',
@@ -127,7 +131,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // Show login or home based on auth state
         if (authProvider.isLoggedIn) {
-          return const HomeScreen();
+          return const MainLayout();
         } else {
           return const LoginScreen();
         }
