@@ -19,7 +19,10 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFriends();
+    // Use addPostFrameCallback to avoid calling notifyListeners during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFriends();
+    });
   }
 
   void _loadFriends() {

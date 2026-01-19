@@ -112,18 +112,37 @@ class TrackingRepository {
     required String userId,
     required double latitude,
     required double longitude,
+    bool? isActiveOnMap,
   }) async {
-    final location = LocationModel(
-      userId: userId,
-      latitude: latitude,
-      longitude: longitude,
-      updatedAt: DateTime.now(),
-    );
+    final updates = <String, dynamic>{
+      'latitude': latitude,
+      'longitude': longitude,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    };
+
+    if (isActiveOnMap != null) {
+      updates['isActiveOnMap'] = isActiveOnMap;
+      updates['lastActiveAt'] = Timestamp.fromDate(DateTime.now());
+    }
 
     await _firestore
         .collection(AppConstants.locationsCollection)
         .doc(userId)
-        .set(location.toMap());
+        .set(updates, SetOptions(merge: true));
+  }
+
+  /// Update active status on map
+  Future<void> updateActiveStatus({
+    required String userId,
+    required bool isActive,
+  }) async {
+    await _firestore
+        .collection(AppConstants.locationsCollection)
+        .doc(userId)
+        .set({
+          'isActiveOnMap': isActive,
+          'lastActiveAt': Timestamp.fromDate(DateTime.now()),
+        }, SetOptions(merge: true));
   }
 
   /// Get latest location of a user
@@ -158,12 +177,6 @@ class TrackingRepository {
       return Stream.value([]);
     }
 
-    // Firestore 'whereIn' is limited to 10 items.
-    // Ideally we'd chunk this, but for now we'll fetch all locations
-    // and filter in memory if the list is small enough, OR just query specific IDs if <= 10.
-    // A better approach for scalability is to query valid friend IDs.
-    // For this prototype, if the list is small, we pass IDs.
-
     if (userIds.length <= 10) {
       return _firestore
           .collection(AppConstants.locationsCollection)
@@ -175,13 +188,6 @@ class TrackingRepository {
                 .toList(),
           );
     } else {
-      // Fallback: This is not efficient for production but works for prototype
-      // Fetches all and filters.
-      // Better: Fetch chunks of 10 and combine streams (complex).
-      // Or: just fetch all locations if privacy allows (filtered by successful lookups).
-      // Since we only want to show 'activeAsTracked' users,
-      // let's stick to the 10 limit usage or just 10 active at a time for MVP.
-      // We will slice the first 10 for safety.
       return _firestore
           .collection(AppConstants.locationsCollection)
           .where(FieldPath.documentId, whereIn: userIds.take(10).toList())
@@ -192,6 +198,29 @@ class TrackingRepository {
                 .toList(),
           );
     }
+  }
+
+  /// Stream of only ACTIVE friend locations (users who are actively on map)
+  Stream<List<LocationModel>> streamActiveFriendLocations(
+    List<String> friendIds,
+  ) {
+    if (friendIds.isEmpty) {
+      return Stream.value([]);
+    }
+
+    // Get locations and filter for active users
+    final idsToQuery = friendIds.take(10).toList();
+
+    return _firestore
+        .collection(AppConstants.locationsCollection)
+        .where(FieldPath.documentId, whereIn: idsToQuery)
+        .where('isActiveOnMap', isEqualTo: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => LocationModel.fromFirestore(doc))
+              .toList(),
+        );
   }
 
   /// Check if I can track a specific user

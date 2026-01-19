@@ -17,11 +17,14 @@ class TrackingProvider extends ChangeNotifier {
   List<TrackingRequestModel> _activeAsTracker = []; // Users I am tracking
   LocationModel? _trackedUserLocation;
   List<LocationModel> _globalLocations = []; // All tracked users locations
+  List<LocationModel> _activeFriendLocations = []; // Only active friends on map
   bool _isLoading = false;
   bool _isSharing = false;
+  bool _isActiveOnMap = false;
   String? _errorMessage;
   StreamSubscription? _locationSubscription;
   StreamSubscription? _globalLocationSubscription;
+  StreamSubscription? _activeFriendLocationSubscription;
 
   // Getters
   List<TrackingRequestModel> get pendingRequests => _pendingRequests;
@@ -29,8 +32,10 @@ class TrackingProvider extends ChangeNotifier {
   List<TrackingRequestModel> get activeAsTracker => _activeAsTracker;
   LocationModel? get trackedUserLocation => _trackedUserLocation;
   List<LocationModel> get globalLocations => _globalLocations;
+  List<LocationModel> get activeFriendLocations => _activeFriendLocations;
   bool get isLoading => _isLoading;
   bool get isSharing => _isSharing;
+  bool get isActiveOnMap => _isActiveOnMap;
   String? get errorMessage => _errorMessage;
   int get pendingRequestsCount => _pendingRequests.length;
 
@@ -119,8 +124,23 @@ class TrackingProvider extends ChangeNotifier {
     }
   }
 
+  /// Set user as active on map (called when user taps Map tab)
+  Future<void> setMapActive(String userId, bool isActive) async {
+    _isActiveOnMap = isActive;
+    notifyListeners();
+
+    try {
+      await _repository.updateActiveStatus(userId: userId, isActive: isActive);
+    } catch (e) {
+      debugPrint('Error updating active status: $e');
+    }
+  }
+
   /// Start sharing my location (for tracked user)
-  Future<void> startSharingLocation(String userId) async {
+  Future<void> startSharingLocation(
+    String userId, {
+    bool setActiveOnMap = false,
+  }) async {
     if (_isSharing) return;
 
     final interval = StorageService.instance.getLocationInterval();
@@ -135,6 +155,7 @@ class TrackingProvider extends ChangeNotifier {
           userId: userId,
           latitude: position.latitude,
           longitude: position.longitude,
+          isActiveOnMap: setActiveOnMap ? _isActiveOnMap : null,
         );
       },
     );
@@ -202,11 +223,43 @@ class TrackingProvider extends ChangeNotifier {
         );
   }
 
+  /// Start streaming only ACTIVE friend locations (friends who have map tab open)
+  void startActiveFriendLocationStream(List<String> friendIds) {
+    _activeFriendLocationSubscription?.cancel();
+
+    if (friendIds.isEmpty) {
+      _activeFriendLocations = [];
+      notifyListeners();
+      return;
+    }
+
+    _activeFriendLocationSubscription = _repository
+        .streamActiveFriendLocations(friendIds)
+        .listen(
+          (locations) {
+            _activeFriendLocations = locations;
+            notifyListeners();
+          },
+          onError: (e) {
+            _errorMessage = e.toString();
+            notifyListeners();
+          },
+        );
+  }
+
   /// Stop watching global location
   void stopGlobalLocationStream() {
     _globalLocationSubscription?.cancel();
     _globalLocationSubscription = null;
     _globalLocations = [];
+    notifyListeners();
+  }
+
+  /// Stop watching active friend locations
+  void stopActiveFriendLocationStream() {
+    _activeFriendLocationSubscription?.cancel();
+    _activeFriendLocationSubscription = null;
+    _activeFriendLocations = [];
     notifyListeners();
   }
 
@@ -243,6 +296,7 @@ class TrackingProvider extends ChangeNotifier {
   void dispose() {
     _locationSubscription?.cancel();
     _globalLocationSubscription?.cancel();
+    _activeFriendLocationSubscription?.cancel();
     _locationService.stopLocationUpdates();
     super.dispose();
   }

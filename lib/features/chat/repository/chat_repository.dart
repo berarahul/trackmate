@@ -4,16 +4,30 @@ import '../model/chat_message_model.dart';
 
 class ChatRepository {
   final FirebaseFirestore _firestore = FirebaseService.instance.firestore;
-  static const String chatCollection =
-      'global_chat'; // Single global room for simplicity
+  static const String chatRoomsCollection = 'friend_chat_rooms';
 
-  /// Send a message
+  /// Generate a unique chat room ID based on friend IDs
+  /// Sorts and hashes friend IDs to create a consistent room ID
+  String generateFriendChatRoomId(List<String> friendIds) {
+    if (friendIds.isEmpty) {
+      return 'no_friends';
+    }
+    // Sort IDs to ensure consistent room ID regardless of order
+    final sortedIds = List<String>.from(friendIds)..sort();
+    // Create a simple hash from sorted IDs
+    return sortedIds.join('_');
+  }
+
+  /// Send a message to the friend chat room
   Future<void> sendMessage({
     required String senderId,
     required String senderName,
     required String text,
+    required List<String> friendIds,
     MessageType type = MessageType.text,
   }) async {
+    final roomId = generateFriendChatRoomId(friendIds);
+
     final message = ChatMessageModel(
       id: '',
       senderId: senderId,
@@ -23,13 +37,21 @@ class ChatRepository {
       createdAt: DateTime.now(),
     );
 
-    await _firestore.collection(chatCollection).add(message.toMap());
+    await _firestore
+        .collection(chatRoomsCollection)
+        .doc(roomId)
+        .collection('messages')
+        .add(message.toMap());
   }
 
-  /// Stream messages
-  Stream<List<ChatMessageModel>> getMessages() {
+  /// Stream messages from the friend chat room
+  Stream<List<ChatMessageModel>> getMessages(List<String> friendIds) {
+    final roomId = generateFriendChatRoomId(friendIds);
+
     return _firestore
-        .collection(chatCollection)
+        .collection(chatRoomsCollection)
+        .doc(roomId)
+        .collection('messages')
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
@@ -38,5 +60,10 @@ class ChatRepository {
               .map((doc) => ChatMessageModel.fromFirestore(doc))
               .toList(),
         );
+  }
+
+  /// Get the friend chat room ID for video calls
+  String getCallRoomId(List<String> friendIds) {
+    return 'call_${generateFriendChatRoomId(friendIds)}';
   }
 }

@@ -6,12 +6,16 @@ class LocationModel {
   final double latitude;
   final double longitude;
   final DateTime updatedAt;
+  final bool isActiveOnMap;
+  final DateTime? lastActiveAt;
 
   LocationModel({
     required this.userId,
     required this.latitude,
     required this.longitude,
     required this.updatedAt,
+    this.isActiveOnMap = false,
+    this.lastActiveAt,
   });
 
   /// Create from Firestore document
@@ -22,6 +26,8 @@ class LocationModel {
       latitude: (data['latitude'] ?? 0.0).toDouble(),
       longitude: (data['longitude'] ?? 0.0).toDouble(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isActiveOnMap: data['isActiveOnMap'] ?? false,
+      lastActiveAt: (data['lastActiveAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -31,6 +37,9 @@ class LocationModel {
       'latitude': latitude,
       'longitude': longitude,
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'isActiveOnMap': isActiveOnMap,
+      if (lastActiveAt != null)
+        'lastActiveAt': Timestamp.fromDate(lastActiveAt!),
     };
   }
 
@@ -40,17 +49,21 @@ class LocationModel {
     double? latitude,
     double? longitude,
     DateTime? updatedAt,
+    bool? isActiveOnMap,
+    DateTime? lastActiveAt,
   }) {
     return LocationModel(
       userId: userId ?? this.userId,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       updatedAt: updatedAt ?? this.updatedAt,
+      isActiveOnMap: isActiveOnMap ?? this.isActiveOnMap,
+      lastActiveAt: lastActiveAt ?? this.lastActiveAt,
     );
   }
 
   @override
   String toString() {
-    return 'LocationModel(userId: $userId, lat: $latitude, lng: $longitude)';
+    return 'LocationModel(userId: $userId, lat: $latitude, lng: $longitude, active: $isActiveOnMap)';
   }
 }

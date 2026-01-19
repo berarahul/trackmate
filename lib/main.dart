@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 // Core
 import 'core/services/firebase_service.dart';
 import 'core/services/storage_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
 
 // Providers
@@ -15,7 +16,6 @@ import 'features/tracking/provider/tracking_provider.dart';
 
 // Screens
 import 'features/auth/view/login_screen.dart';
-// import 'features/home/view/home_screen.dart';
 import 'features/tracking/view/tracking_map_screen.dart';
 import 'main_layout.dart';
 
@@ -28,6 +28,9 @@ void main() async {
 
   // Initialize Storage Service
   await StorageService.instance.initialize();
+
+  // Initialize Notification Service
+  await NotificationService.instance.initialize();
 
   runApp(const TrackMateApp());
 }
@@ -93,7 +96,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Initialize auth state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AuthProvider>().initialize();
+
+      // Set up notification tap handler
+      NotificationService.instance.onNotificationTap = _handleNotificationTap;
     });
+  }
+
+  void _handleNotificationTap(String type, Map<String, dynamic> data) {
+    debugPrint('Notification tapped: type=$type, data=$data');
+    // Navigate based on notification type
+    // For now, the app will just open to the main screen
+    // More specific navigation can be added here
   }
 
   @override
@@ -127,6 +140,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
               ),
             ),
           );
+        }
+
+        // Store FCM token when logged in
+        if (authProvider.isLoggedIn && authProvider.user != null) {
+          NotificationService.instance.storeFcmToken(authProvider.user!.uid);
         }
 
         // Show login or home based on auth state
